@@ -1,0 +1,62 @@
+audit_platform: "aliyun" # 或其他您希望默认使用的已实现平台
+
+# Zap 日志配置 (根据共享模块更新)
+zapConfig:
+  level: "debug"    # 日志级别 (例如: "debug", "info", "warn", "error")
+  encoding: "json"   # 编码格式 ("json" 或 "console")
+  # 注意：根据您提供的共享 ZapConfig，以下字段已移除，因为它们不是共享配置的一部分。
+  # K8s 环境下推荐使用 stdout/stderr。
+  # output_path: "stdout"
+  # error_output: "stderr"
+  # max_size: 10
+  # max_age: 7
+  # max_backups: 3
+
+kafka: # Kafka configuration
+  brokers:
+    - "localhost:9092"  # 连接到 docker-compose 中的 kafka-broker1
+    - "localhost:9093"  # 连接到 docker-compose 中的 kafka-broker2"
+  version: "2.8.1" # Kafka version
+  consumer_group_id: "post_audit_consumer_group" #
+  topics: #
+    pending_moderation: "post_pending_audit" # 提交审核主题
+    approved: "post_audit_approved" #  审核通过主题
+    rejected: "post_audit_rejected" #  审核拒绝主题
+    dead_letter_queue: "post_audit_dlq_topic" # 死信队列主题
+  producer: #
+    required_acks: "wait_for_all" # "no_response", "wait_for_local", "wait_for_all"
+    timeout_ms: 5000 # Producer request timeout in milliseconds
+    return_successes: true # Required true for sync producer
+    return_errors: true    # Required true for sync producer
+    max_message_bytes: 1048576 # Example: 1MB
+  consumer: #
+    # auto_offset_reset: "earliest" # Sarama uses Offsets.Initial. For post-audit, it's forced to "earliest"
+    session_timeout_ms: 30000 # Consumer session timeout in milliseconds
+    heartbeat_interval_ms: 10000 # Consumer heartbeat interval in milliseconds
+    offsets: #
+      auto_commit_enable: false # Recommended false for manual commit
+      auto_commit_interval_ms: 5000 # Interval if auto-commit is enabled
+      initial: "earliest" # "earliest" or "latest" - For audit service, this will be overridden to "earliest" in code
+  enable_sasl: false #
+  sasl_user: "" #
+  sasl_password: "" #
+  sasl_mechanism: "PLAIN" # e.g., "PLAIN", "SCRAM-SHA-256", "SCRAM-SHA-512"
+  enable_tls: false #
+  tls_ca_file: "" # Path to CA certificate file
+  tls_cert_file: "" # Path to client certificate file
+  tls_key_file: "" # Path to client private key file
+  tls_insecure_skip_verify: false # Not recommended for production
+
+aliyun_audit: # Aliyun Content Moderation service configuration
+  access_key_id: "" #
+  access_key_secret: "" #
+  region_id: "" # e.g., "cn-shanghai"
+  endpoint: "" # Aliyun Image Audit endpoint, or your specific service endpoint
+  # text_moderation_service: "comment_detection" # Service code for text moderation, if different from default imageaudit or if using a specific one
+  timeout_ms: 5000 # API call timeout in milliseconds
+  scenes: # List of moderation scenes/labels
+    - "spam"
+    - "ad"
+    - "porn"
+    - "abuse"
+    # Add other relevant scenes

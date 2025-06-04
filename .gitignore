@@ -1,0 +1,14 @@
+# 忽略所有以 .local.yaml 结尾的配置文件
+*.local.yaml
+
+# 或者，如果你用了特定名称，比如 config.secrets.yaml
+config.secrets.yaml
+
+# 之前建议的 .idea (如果还没加)
+.idea/
+
+# 编译的二进制文件等
+post_audit_service
+kafkatestproducer
+*.exe
+*.out

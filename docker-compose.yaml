@@ -1,0 +1,86 @@
+# KRaft 模式需要一个唯一的集群 ID。
+# 您已经指定使用： '1IOGvJTQRHekq5NzkDNl'
+# 集群中的所有 controller 和 broker 节点都必须使用相同的 Cluster ID。
+
+volumes:
+  kafka_broker1_data:
+    driver: local
+  kafka_broker2_data:
+    driver: local
+
+services:
+  kafka-broker1:
+    image: confluentinc/cp-kafka:7.6.1 # 建议统一版本，这里使用 7.6.1
+    hostname: kafka-broker1
+    container_name: kafka-broker1
+    volumes:
+      # 持久化 Kafka 数据和 KRaft 元数据。
+      # Confluent 镜像默认将数据存储在 /var/lib/kafka/data，
+      # KRaft 元数据日志也会在此目录下（如果 KAFKA_METADATA_LOG_DIR 未单独指定）。
+      - kafka_broker1_data:/var/lib/kafka/data
+    ports:
+      - "9092:9092" # 宿主机端口 9092 -> 容器 EXTERNAL_HOST 监听端口 9092
+    environment:
+      # KRaft 配置
+      KAFKA_PROCESS_ROLES: 'broker,controller' # 此节点同时作为 broker 和 controller
+      KAFKA_NODE_ID: 1                         # Broker 和 Controller 的唯一 ID
+      # Controller Quorum Voters: 列出所有作为 controller 的节点
+      # 格式: <node_id1>@<controller_host1>:<controller_port1>,...
+      # 这里的 19091 是 CONTROLLER 监听器的端口。
+      KAFKA_CONTROLLER_QUORUM_VOTERS: '1@kafka-broker1:19091,2@kafka-broker2:19091'
+      # KAFKA_CLUSTER_ID 必须对集群中的所有节点都相同。
+      CLUSTER_ID: '1IOGvJTQRHekq5NzkDNl-w' # 使用您之前生成的 ID
+
+      # 监听器配置
+      # BROKER: 用于 broker 间通信以及 Docker 网络内部的客户端。
+      # CONTROLLER: 用于 Raft 协议的 controller 间通信。
+      # EXTERNAL_HOST: 用于 Docker 网络外部的客户端 (例如您的 Go 应用)。
+      KAFKA_LISTENERS: 'BROKER://0.0.0.0:29092,CONTROLLER://0.0.0.0:19091,EXTERNAL_HOST://0.0.0.0:9092'
+      # ADVERTISED_LISTENERS: 其他组件如何连接到此 broker/controller。
+      # CONTROLLER 监听器通常不需要对外 advertised，除非有外部 controller。
+      KAFKA_ADVERTISED_LISTENERS: 'BROKER://kafka-broker1:29092,EXTERNAL_HOST://localhost:9092'
+      KAFKA_INTER_BROKER_LISTENER_NAME: 'BROKER'
+      KAFKA_CONTROLLER_LISTENER_NAMES: 'CONTROLLER'
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: 'BROKER:PLAINTEXT,CONTROLLER:PLAINTEXT,EXTERNAL_HOST:PLAINTEXT'
+
+      # 标准 Kafka 配置 (与您的 YAML 和需求保持一致)
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 2 # 2 个 broker
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 2
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 2
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0 # 加快本地测试的 rebalance
+      # 主题创建: KRaft 模式下由 controller 节点处理。
+      # 在第一个 broker 上定义通常就足够了。
+      KAFKA_CREATE_TOPICS: "pending_moderation_topic:1:2,approved_posts_topic:1:2,rejected_posts_topic:1:2,post_audit_dlq_topic:1:2"
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+      KAFKA_MESSAGE_MAX_BYTES: 1048576 # 与 config.development.yaml 中 producer.max_message_bytes 一致
+
+  kafka-broker2:
+    image: confluentinc/cp-kafka:7.6.1 # 统一镜像版本为 7.6.1
+    hostname: kafka-broker2
+    container_name: kafka-broker2
+    volumes:
+      - kafka_broker2_data:/var/lib/kafka/data
+    ports:
+      # 宿主机端口 9093 -> 容器 EXTERNAL_HOST 监听端口 9093
+      # 确保宿主机端口与 kafka-broker1 不同。
+      - "9093:9093"
+    environment:
+      KAFKA_PROCESS_ROLES: 'broker,controller'
+      KAFKA_NODE_ID: 2
+      KAFKA_CONTROLLER_QUORUM_VOTERS: '1@kafka-broker1:19091,2@kafka-broker2:19091' # 与 broker1 相同
+      CLUSTER_ID: '1IOGvJTQRHekq5NzkDNl-w' # 使用您之前生成的 ID
+
+      KAFKA_LISTENERS: 'BROKER://0.0.0.0:29093,CONTROLLER://0.0.0.0:19091,EXTERNAL_HOST://0.0.0.0:9093'
+      KAFKA_ADVERTISED_LISTENERS: 'BROKER://kafka-broker2:29093,EXTERNAL_HOST://localhost:9093'
+      KAFKA_INTER_BROKER_LISTENER_NAME: 'BROKER'
+      KAFKA_CONTROLLER_LISTENER_NAMES: 'CONTROLLER'
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: 'BROKER:PLAINTEXT,CONTROLLER:PLAINTEXT,EXTERNAL_HOST:PLAINTEXT'
+
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 2
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 2
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 2
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true" # 主题由 controller 创建
+      KAFKA_MESSAGE_MAX_BYTES: 1048576
+    depends_on: # 并非严格需要，但有助于 Docker Compose 按顺序启动，便于观察日志
+      - kafka-broker1
