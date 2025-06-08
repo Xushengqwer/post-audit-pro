@@ -1,5 +1,3 @@
-# .github/workflows/ci-cd.yml (post-audit 最终修正版)
-
 name: CI/CD for Post Audit Service
 
 on:
@@ -15,7 +13,7 @@ jobs:
       contents: read
       packages: write
     outputs:
-      image_tag: ${{ steps.meta.outputs.version }} # 【改进】简化输出
+      image_tag: ${{ steps.meta.outputs.version }}
 
     steps:
       - name: Checkout code
@@ -93,7 +91,7 @@ jobs:
               -e ALIYUNAUDIT_ENDPOINT="imageaudit.cn-shanghai.aliyuncs.com" \
               ${IMAGE_TO_PULL_FULL_NAME}
 
-            echo "==> 5. 【改进】检查容器是否稳定运行..."
+            echo "==> 5. 检查容器是否稳定运行..."
             # 等待15秒让容器有足够时间初始化和连接依赖
             echo "等待 15 秒让容器初始化..."
             sleep 15
