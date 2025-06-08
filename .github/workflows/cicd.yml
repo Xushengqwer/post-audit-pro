@@ -87,8 +87,8 @@ jobs:
               --network ${DOCKER_NETWORK_NAME} \
               --restart unless-stopped \
               -e KAFKA_BROKERS="doer_kafka_broker1:29092,doer_kafka_broker2:29093" \
-                -e ALIYUNAUDIT_ACCESS_KEY_ID="${{ secrets.PROD_ALIYUN_ACCESS_KEY_ID }}" \
-                -e ALIYUNAUDIT_ACCESS_KEY_SECRET="${{ secrets.PROD_ALIYUN_ACCESS_KEY_SECRET }}" \
+              -e ALIYUNAUDIT_ACCESS_KEY_ID="${{ secrets.PROD_ALIYUN_ACCESS_KEY_ID }}" \
+              -e ALIYUNAUDIT_ACCESS_KEY_SECRET="${{ secrets.PROD_ALIYUN_ACCESS_KEY_SECRET }}" \
               -e ALIYUNAUDIT_REGION_ID="cn-shanghai" \
               -e ALIYUNAUDIT_ENDPOINT="imageaudit.cn-shanghai.aliyuncs.com" \
               ${IMAGE_TO_PULL_FULL_NAME}
