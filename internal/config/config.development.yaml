@@ -50,8 +50,8 @@ kafka: # Kafka configuration
 aliyun_audit: # Aliyun Content Moderation service configuration
   access_key_id: "" #
   access_key_secret: "" #
-  region_id: "" # e.g., "cn-shanghai"
-  endpoint: "" # Aliyun Image Audit endpoint, or your specific service endpoint
+  region_id: "cn-shanghai" # e.g., "cn-shanghai"
+  endpoint: "imageaudit.cn-shanghai.aliyuncs.com" # Aliyun Image Audit endpoint, or your specific service endpoint
   # text_moderation_service: "comment_detection" # Service code for text moderation, if different from default imageaudit or if using a specific one
   timeout_ms: 5000 # API call timeout in milliseconds
   scenes: # List of moderation scenes/labels

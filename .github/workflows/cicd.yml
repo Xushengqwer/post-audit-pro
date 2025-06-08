@@ -1,3 +1,5 @@
+# .github/workflows/ci-cd.yml (post-audit 最终修正版)
+
 name: CI/CD for Post Audit Service
 
 on:
@@ -13,7 +15,7 @@ jobs:
       contents: read
       packages: write
     outputs:
-      image_tag_short_sha: ${{ steps.extract_sha_tag.outputs.sha_tag }}
+      image_tag: ${{ steps.meta.outputs.version }} # 【改进】简化输出
 
     steps:
       - name: Checkout code
@@ -34,9 +36,6 @@ jobs:
         uses: docker/metadata-action@v5
         with:
           images: ghcr.io/${{ github.repository }}
-          tags: |
-            type=sha,format=short,prefix=
-            type=raw,value=latest,enable={{is_default_branch}}
 
       - name: Build and push Docker image to GHCR
         uses: docker/build-push-action@v5
@@ -48,17 +47,6 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
-
-      - name: Extract short SHA tag from metadata
-        id: extract_sha_tag
-        run: |
-          TAGS="${{ steps.meta.outputs.tags }}"
-          SHA_TAG=$(echo "$TAGS" | tr ',' '\n' | grep -v 'latest' | grep "ghcr.io/${{ github.repository }}:" | head -n 1 | sed 's/.*://')
-          if [ -z "$SHA_TAG" ]; then
-            echo "Falling back to truncated github.sha"
-            SHA_TAG=$(echo "${{ github.sha }}" | cut -c1-7)
-          fi
-          echo "sha_tag=$SHA_TAG" >> $GITHUB_OUTPUT
 
   deploy-to-cvm:
     name: Deploy Post Audit Service to Tencent Cloud CVM
@@ -77,36 +65,56 @@ jobs:
           script: |
             set -e
             
-            export IMAGE_TAG_TO_PULL="${{ needs.build-and-push-to-ghcr.outputs.image_tag_short_sha }}"
+            export IMAGE_TAG_TO_PULL="${{ needs.build-and-push-to-ghcr.outputs.image_tag }}"
             export GHCR_IMAGE_BASE_LOWERCASE=$(echo "ghcr.io/${{ github.repository }}" | tr '[:upper:]' '[:lower:]')
             export IMAGE_TO_PULL_FULL_NAME="${GHCR_IMAGE_BASE_LOWERCASE}:${IMAGE_TAG_TO_PULL}"
             export CONTAINER_NAME="post-audit-app"
             export DOCKER_NETWORK_NAME="doer_infra_doer_xyz_dev_network"
 
-            echo "登录 GHCR..."
+            echo "==> 1. 登录 GHCR..."
             docker login ghcr.io -u ${{ secrets.CVM_GH_USERNAME }} -p ${{ secrets.GHCR_PAT_FOR_CVM }}
 
-            echo "拉取镜像: ${IMAGE_TO_PULL_FULL_NAME}"
+            echo "==> 2. 拉取镜像: ${IMAGE_TO_PULL_FULL_NAME}"
             docker pull ${IMAGE_TO_PULL_FULL_NAME}
 
-            echo "停止并删除旧容器 (如果存在)..."
+            echo "==> 3. 停止并删除旧容器 (如果存在)..."
             docker stop ${CONTAINER_NAME} || true
             docker rm ${CONTAINER_NAME} || true
 
-            echo "启动新容器并注入 post_audit 的生产环境变量..."
+            echo "==> 4. 启动新容器并注入生产环境变量..."
             docker run -d \
               --name ${CONTAINER_NAME} \
               --network ${DOCKER_NETWORK_NAME} \
-              -e ZAPCONFIG_LEVEL="info" \
-              -e AUDIT_PLATFORM="aliyun" \
-              -e KAFKA_BROKERS="kafka-broker1:29092,kafka-broker2:29093" \
-              -e ALIYUN_AUDIT_ACCESS_KEY_ID="${{ secrets.PROD_ALIYUN_ACCESS_KEY_ID }}" \
-              -e ALIYUN_AUDIT_ACCESS_KEY_SECRET="${{ secrets.PROD_ALIYUN_ACCESS_KEY_SECRET }}" \
-              -e ALIYUN_AUDIT_REGION_ID="cn-shanghai" \
-              -e ALIYUN_AUDIT_ENDPOINT="imageaudit.cn-shanghai.aliyuncs.com" \
+              --restart unless-stopped \
+              -e KAFKA_BROKERS="doer_kafka_broker1:29092,doer_kafka_broker2:29093" \
+              -e ALIYUNAUDIT_ACCESS_KEY_ID="${{ secrets.PROD_ALIYUN_ACCESS_KEY_ID }}" \
+              -e ALIYUNAUDIT_ACCESS_KEY_SECRET="${{ secrets.PROD_ALIYUN_ACCESS_KEY_SECRET }}" \
+              -e ALIYUNAUDIT_REGION_ID="cn-shanghai" \
+              -e ALIYUNAUDIT_ENDPOINT="imageaudit.cn-shanghai.aliyuncs.com" \
               ${IMAGE_TO_PULL_FULL_NAME}
 
-            echo "部署成功! Post Audit 应用正在 CVM 上运行。"
-            sleep 10
-            echo "查看 Post Audit 容器最新日志:"
+            echo "==> 5. 【改进】检查容器是否稳定运行..."
+            # 等待15秒让容器有足够时间初始化和连接依赖
+            echo "等待 15 秒让容器初始化..."
+            sleep 15
+            
+            # 检查容器是否仍在运行。如果启动后立即崩溃，这个检查会失败
+            if ! docker ps -q -f name=${CONTAINER_NAME}; then
+                echo "❌ 部署失败: 容器未能启动或已退出。"
+                # 打印崩溃容器的日志以帮助排查
+                docker logs ${CONTAINER_NAME}
+                exit 1
+            fi
+            
+            # 再次检查容器状态，确保它不是在重启循环中
+            STATUS=$(docker inspect --format '{{.State.Status}}' ${CONTAINER_NAME})
+            if [ "${STATUS}" != "running" ]; then
+                echo "❌ 部署失败: 容器状态为 '${STATUS}' 而不是 'running'。"
+                docker logs ${CONTAINER_NAME}
+                exit 1
+            fi
+
+            echo "✅ 容器已成功启动并正在运行。"
+            echo "🚀 部署成功完成! Post Audit 应用正在 CVM 上运行。"
+            echo "查看容器最新日志:"
             docker logs --tail 50 ${CONTAINER_NAME}

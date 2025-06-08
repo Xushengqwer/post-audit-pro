@@ -1,11 +1,11 @@
 package main
 
 import (
+	"encoding/json"
 	"flag"
 	"log"
 	"os"
 	"os/signal"
-	"strings" // <-- 确保导入
 	"syscall"
 
 	"github.com/Xushengqwer/go-common/core"
@@ -27,37 +27,12 @@ func main() {
 		log.Fatalf("致命错误: 加载配置文件 '%s' 失败: %v", configFile, err)
 	}
 
-	// --- 手动从环境变量覆盖关键配置 ---
-	log.Println("检查环境变量以覆盖文件配置...")
-	if platform := os.Getenv("AUDIT_PLATFORM"); platform != "" {
-		cfg.AuditPlatform = platform
-		log.Printf("通过环境变量覆盖了 AuditPlatform: %s\n", platform)
+	// 【调试日志】打印最终生效的配置，非常有助于验证 CI/CD
+	configBytes, err := json.MarshalIndent(cfg, "", "  ")
+	if err != nil {
+		log.Fatalf("无法序列化最终配置以进行打印: %v", err)
 	}
-	if level := os.Getenv("ZAPCONFIG_LEVEL"); level != "" {
-		cfg.ZapConfig.Level = level
-		log.Printf("通过环境变量覆盖了 ZapConfig.Level: %s\n", level)
-	}
-	if brokers := os.Getenv("KAFKA_BROKERS"); brokers != "" {
-		cfg.Kafka.Brokers = strings.Split(brokers, ",")
-		log.Printf("通过环境变量覆盖了 Kafka.Brokers: %v\n", cfg.Kafka.Brokers)
-	}
-	if keyID := os.Getenv("ALIYUN_AUDIT_ACCESS_KEY_ID"); keyID != "" {
-		cfg.AliyunAudit.AccessKeyID = keyID
-		log.Printf("通过环境变量覆盖了 AliyunAudit.AccessKeyID\n")
-	}
-	if keySecret := os.Getenv("ALIYUN_AUDIT_ACCESS_KEY_SECRET"); keySecret != "" {
-		cfg.AliyunAudit.AccessKeySecret = keySecret
-		log.Printf("通过环境变量覆盖了 AliyunAudit.AccessKeySecret\n")
-	}
-	if region := os.Getenv("ALIYUN_AUDIT_REGION_ID"); region != "" {
-		cfg.AliyunAudit.RegionID = region
-		log.Printf("通过环境变量覆盖了 AliyunAudit.RegionID: %s\n", region)
-	}
-	if endpoint := os.Getenv("ALIYUN_AUDIT_ENDPOINT"); endpoint != "" {
-		cfg.AliyunAudit.Endpoint = endpoint
-		log.Printf("通过环境变量覆盖了 AliyunAudit.Endpoint: %s\n", endpoint)
-	}
-	// --- 结束环境变量覆盖 ---
+	log.Printf("应用最终将使用以下配置:\n%s\n", string(configBytes))
 
 	logger, loggerErr := core.NewZapLogger(cfg.ZapConfig)
 	if loggerErr != nil {
@@ -71,10 +46,7 @@ func main() {
 	}()
 	logger.Info("Logger 初始化成功。")
 
-	// ... (main 函数的其余部分保持不变) ...
 	var moderator auditplatform.ContentReviewer
-	var err error
-
 	logger.Info("根据配置初始化审核平台...", zap.String("configured_platform", cfg.AuditPlatform))
 
 	switch cfg.AuditPlatform {
