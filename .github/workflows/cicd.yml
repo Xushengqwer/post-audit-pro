@@ -1,5 +1,3 @@
-# .github/workflows/ci-cd.yml (post-audit 最终决战版)
-
 name: CI/CD for Post Audit Service
 
 on:
@@ -87,23 +85,26 @@ jobs:
               --network ${DOCKER_NETWORK_NAME} \
               --restart unless-stopped \
               -e KAFKA_BROKERS="doer_kafka_broker1:29092,doer_kafka_broker2:29093" \
-              # 【关键修正】确保环境变量名与 Viper 期望的完全一致（增加了下划线）
               -e ALIYUN_AUDIT_ACCESS_KEY_ID="${{ secrets.PROD_ALIYUN_ACCESS_KEY_ID }}" \
               -e ALIYUN_AUDIT_ACCESS_KEY_SECRET="${{ secrets.PROD_ALIYUN_ACCESS_KEY_SECRET }}" \
-              -e ALIYUN_AUDIT_REGION_ID="cn-shanghai" \
-              -e ALIYUN_AUDIT_ENDPOINT="imageaudit.cn-shanghai.aliyuncs.com" \
+              -e ALIYUNAUDIT_REGION_ID="cn-shanghai" \
+              -e ALIYUNAUDIT_ENDPOINT="imageaudit.cn-shanghai.aliyuncs.com" \
               ${IMAGE_TO_PULL_FULL_NAME}
 
             echo "==> 5. 检查容器是否稳定运行..."
+            # 等待15秒让容器有足够时间初始化和连接依赖
             echo "等待 15 秒让容器初始化..."
             sleep 15
             
+            # 检查容器是否仍在运行。如果启动后立即崩溃，这个检查会失败
             if ! docker ps -q -f name=${CONTAINER_NAME}; then
                 echo "❌ 部署失败: 容器未能启动或已退出。"
+                # 打印崩溃容器的日志以帮助排查
                 docker logs ${CONTAINER_NAME}
                 exit 1
             fi
             
+            # 再次检查容器状态，确保它不是在重启循环中
             STATUS=$(docker inspect --format '{{.State.Status}}' ${CONTAINER_NAME})
             if [ "${STATUS}" != "running" ]; then
                 echo "❌ 部署失败: 容器状态为 '${STATUS}' 而不是 'running'。"
@@ -113,9 +114,5 @@ jobs:
 
             echo "✅ 容器已成功启动并正在运行。"
             echo "🚀 部署成功完成! Post Audit 应用正在 CVM 上运行。"
-
-            echo "==> 6. 【调试】打印容器内的环境变量进行最终确认..."
-            docker exec ${CONTAINER_NAME} printenv | grep ALIYUN || echo "未找到 ALIYUN 相关的环境变量"
-
             echo "查看容器最新日志:"
             docker logs --tail 50 ${CONTAINER_NAME}
