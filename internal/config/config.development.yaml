@@ -1,4 +1,5 @@
-audit_platform: "aliyun" # 或其他您希望默认使用的已实现平台
+# 或其他您希望默认使用的已实现审核云平台
+audit_platform: "aliyun"
 
 # Zap 日志配置 (根据共享模块更新)
 zapConfig:

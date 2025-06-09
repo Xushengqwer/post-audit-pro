@@ -4,7 +4,7 @@ go 1.23.7
 
 require (
 	github.com/IBM/sarama v1.45.1
-	github.com/Xushengqwer/go-common v0.0.0-20250608151329-348d790722e3
+	github.com/Xushengqwer/go-common v0.0.0-20250609053903-e9d21127601b
 	github.com/alibabacloud-go/darabonba-openapi/v2 v2.1.7
 	github.com/alibabacloud-go/imageaudit-20191230/v3 v3.0.4
 	github.com/alibabacloud-go/tea v1.3.9
