@@ -67,7 +67,7 @@ jobs:
             export GHCR_IMAGE_BASE_LOWERCASE=$(echo "ghcr.io/${{ github.repository }}" | tr '[:upper:]' '[:lower:]')
             export IMAGE_TO_PULL_FULL_NAME="${GHCR_IMAGE_BASE_LOWERCASE}:${IMAGE_TAG_TO_PULL}"
             export CONTAINER_NAME="post-audit-app"
-            export DOCKER_NETWORK_NAME="doer_infra_doer_xyz_dev_network"
+            export DOCKER_NETWORK_NAME="doer_project_doer_xyz_dev_network"
 
             echo "==> 1. 登录 GHCR..."
             docker login ghcr.io -u ${{ secrets.CVM_GH_USERNAME }} -p ${{ secrets.GHCR_PAT_FOR_CVM }}
